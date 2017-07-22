@@ -1,0 +1,192 @@
+<!-- 
+Copyright 2017 IBM Corp.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+-->
+
+<aura:component controller="WeatherService" implements="flexipage:availableForRecordHome,force:hasRecordId,force:hasSObjectName" access="GLOBAL">
+    <aura:attribute name="units" access="global" type="String" />
+    <aura:attribute name="recordId" type="Id" />
+    <aura:attribute name="sObjectName" type="String" />
+    
+    <aura:attribute name="currentConditions" access="private" type="WeatherCondition" />
+    <aura:attribute name="conditions" access="private" type="WeatherCondition[]" />
+    <aura:attribute name="weatherLoaded" access="private" type="Boolean" default="false" />
+    <aura:attribute name="weatherLoading" access="private" type="Boolean" default="true" />
+    <aura:attribute name="errorMessage" access="private" type="String" default="" />
+    
+    <aura:attribute name="todayDate" access="private" type="String" />
+    <aura:attribute name="yesterdayDate" access="private" type="String" />
+    <aura:attribute name="labelDropDown" access="private" type="String"/>
+    <aura:attribute name="indexToChangeDate" access="private" type="Integer" default="-1" />       
+    
+    <aura:attribute name="domLoaded" access="private" type="Boolean" default="false" />
+    
+    <aura:attribute name="latitude" access="private" type="Decimal" />
+    <aura:attribute name="longitude" access="private" type="Decimal" />
+    <aura:attribute name="weatherLocation" access="private" type="WeatherLocation" /> 
+    <aura:attribute name="weatherURL" access="private" type="String" />     
+    <aura:attribute name="hasPurchasedKey" access="private" type="Boolean" default="true" />
+    
+    <aura:attribute name="useMockup" access="private" type="Boolean" default="true" />
+    
+    <!-- events -->
+    <aura:handler name="init" value="{!this}" action="{!c.doInit}"/>
+    <aura:dependency resource="markup://force:editRecord" type="EVENT" />
+    <aura:handler event="force:refreshView" action="{!c.doInit}" />
+    
+    <div class="slds-panel">
+        <aura:if isTrue="{!v.errorMessage != ''}">            
+            <div class="errorMessage">
+                <h3 class="slds-section__title slds-border--bottom slds-p-bottom--x-small">the weather snapshot component</h3>
+                <div class="slds-p-vertical--medium">
+                    <ui:message severity="error">                    
+                        <ui:outputText value="{!v.errorMessage}" />    
+			<aura:if isTrue="{!v.hasPurchasedKey == false}">
+                            <a class="slds-m-left--xx-small" target="_blank" href="{!$Label.c.unmanaged_buy_api_url}">
+                                <ui:outputText value="{!$Label.c.unmanaged_banner_url}" />
+                            </a>
+                        </aura:if>
+                    </ui:message>
+                </div>
+            </div>    
+        </aura:if>
+        <aura:if isTrue="{!v.weatherLoading}">
+            <div class="slds-form--compound">
+                <div class="slds-spinner_container" aura:id="uploadSpinner">
+                    <div class="slds-spinner slds-spinner--medium" aria-hidden="false" role="alert">
+                        <div class="slds-spinner__dot-a"></div>
+                        <div class="slds-spinner__dot-b"></div>
+                    </div>
+                </div>
+            </div>
+        </aura:if>
+        <aura:if aura:id="mockup_map" isTrue="{!v.useMockup}">
+            <div class="slds-size--1-of-1 slds-banner-container">
+            	<p class="banner">{!$Label.c.unmanaged_banner_message}<a target="_blank" href="{!$Label.c.unmanaged_buy_api_url}">{!$Label.c.unmanaged_banner_url}</a>.</p>	
+	        </div>
+        </aura:if>
+        <aura:if isTrue="{!v.errorMessage == ''}">
+            <div class="slds-panel__section slds-border_bottom slds-clearfix">
+                
+                <aura:if isTrue="{!v.weatherLoaded}">
+                    <div class="slds-grid slds-wrap">
+                        <div class="slds-size--1-of-2">
+                            <div class="slds-text-heading_small slds-float_left slds-m-top--xx-small fontMediumSize">
+                                 <aura:if isTrue="{!v.weatherLocation.city != null}"> 
+ 			        				<ui:outputText value="{!v.weatherLocation.city}" />
+                                    <aura:set attribute="else">
+                                        <ui:outputText value="{!v.weatherLocation.postalCode}" />
+                                    </aura:set>
+                                </aura:if>      
+				<aura:if isTrue="{!v.weatherLocation.countryCode=='US'}">
+                                    ,&nbsp;<ui:outputText value="{!v.weatherLocation.state}" />
+                                    <aura:set attribute="else">
+                                        ,&nbsp;<ui:outputText value="{!v.weatherLocation.adminDistrict}" />
+                                    </aura:set>
+                                </aura:if>
+			    </div>                            
+                        </div>                      
+                        <div class="slds-size--1-of-2">                            
+                            <div class="slds-float_right">                            
+                                <div class="slds-form-element">                               
+                                    <div class="slds-form-element__control">
+                                        <div class="slds-combobox_container slds-size_x-small">
+                                            <div aura:id="changeIt" class="slds-combobox slds-dropdown-trigger slds-dropdown-trigger_click slds-combobox-picklist" aria-expanded="false" aria-haspopup="listbox" role="combobox">
+                                                <div class="slds-combobox__form-element">
+                                                    <span onclick="{!c.updateDropDown}">
+                                                        <lightning:icon class="dropdown_arrow" iconName="utility:down" size="x-small" />
+                                                        <ui:outputText class="slds-input slds-combobox__input" value="{!v.labelDropDown}" />
+                                                    </span>
+                                                </div>
+                                                <div id="listbox-unique-id" role="listbox">
+                                                    <ul class="slds-listbox slds-listbox_vertical slds-dropdown slds-dropdown_fluid" role="presentation">
+                                                        <aura:iteration items="{!v.conditions}" var="condition" indexVar="index">                                                            
+                                                            <aura:if isTrue="{!index == 0}">
+                                                            <li role="presentation" class="slds-listbox__item">                                                                
+                                                                <span class="slds-media slds-listbox__option slds-listbox__option_plain slds-media_small slds-media_center" role="option">                                                               
+                                                                    <span style="color:grey;" class="slds-media__body slds-truncate">                                                                        
+                                                                            <ui:outputText value="{!v.todayDate}" />                                                                        
+                                                                    </span>
+                                                                </span>
+                                                            </li>
+                                                            </aura:if>
+                                                            <aura:if isTrue="{!index == v.indexToChangeDate}">
+                                                            <li role="presentation" class="slds-listbox__item">                                                                
+                                                                <span class="slds-media slds-listbox__option slds-listbox__option_plain slds-media_small slds-media_center" role="option">                                                               
+                                                                    <span style="color:grey;" class="slds-media__body slds-truncate">                                                                        
+                                                                            <ui:outputText value="{!v.yesterdayDate}" />                                                                        
+                                                                    </span>
+                                                                </span>
+                                                            </li>
+                                                            </aura:if>
+                                                            <li role="presentation" class="slds-listbox__item">                                                                
+                                                                <span class="slds-media slds-listbox__option slds-listbox__option_plain slds-media_small slds-media_center" role="option">                                                               
+                                                                    <span class="slds-media__body slds-truncate slds-p-left--xx-large" data-index="{!index}" onclick="{!c.handleAction}">                                                                        
+                                                                            <ui:outputText value="{!condition.asOfTime}"/>                                                                        
+                                                                    </span>
+                                                                </span>
+                                                            </li>                                                             
+                                                        </aura:iteration>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                
+                                
+                                
+                                
+                            </div><!--here-->  
+                        </div> 
+                    </div>
+                </aura:if>
+                
+            </div>  
+            
+            <div class="slds-panel__section">            
+                <div class="slds-grid slds-wrap slds-grid">
+                    <div class="slds-size--1-of-8">
+                        <img src="{!$Resource.weather_icons + '/icons/' + v.currentConditions.iconCode + '.svg'}" />
+                        <p class="slds-text-align--center fontBigSize"><ui:outputText value="{!v.currentConditions.temp}" />
+                            <ui:outputText value="{!$Label.c.degree_symbol}" /></p>
+                    </div>    
+                    <div class="slds-size--7-of-8">
+                        <div class="slds-m-left--x-large">                    
+                            <p class="fontBigSize"><ui:outputText value="{!v.currentConditions.phrase}" /></p>
+                            <p class = "slds-text-body--small">
+                                <ui:outputText value="{!$Label.c.temp_feels_like}" />&nbsp;
+                                <ui:outputText value="{!v.currentConditions.feelsLikeTemp}"/>
+                                <ui:outputText value="{!$Label.c.degree_symbol}" />                            
+                            </p>
+                            <p>
+                                <ui:outputText value="{!v.currentConditions.windSpeed}" />
+                                <ui:outputText class="slds-m-left--xxx-small" value="{!if(v.units == 'Metric',$Label.c.units_speed_metric,$Label.c.units_speed_english)}" />
+                                <ui:outputText class="slds-m-left--xx-small" value="{!$Label.c.wind_speed + ' ' + v.currentConditions.windDirectionCardinal}" /> 
+                            </p>                           
+                        </div>
+                    </div>     
+                </div>                                                                                          
+            </div>
+        </aura:if> 
+        <div class="slds-panel__actions slds-border_top">
+            <div class="slds-grid slds-wrap slds-grid" id = "footer_logo">            
+                <div class="slds-size--2-of-8">
+                    <img src="{!$Resource.WeatherCompanyLogo}"/>
+                </div>
+                <aura:if isTrue="{!and(v.weatherLoaded,v.errorMessage == '')}">
+                    <div class="slds-text-align--right slds-size--6-of-8">
+                        <button onclick="{!c.saveSnapshot}" type="button" class="slds-button slds-button_brand slds-float_right">
+                            {!$Label.c.btn_save_snapshot}
+                        </button>                                      
+                    </div>
+                </aura:if>                                                    
+            </div>
+        </div>
+    </div>
+</aura:component>
