@@ -40,7 +40,7 @@ public with sharing class LocationService {
     public static GeoLocation getLocationForPostalCode(String postalCode, String country) {
         API__mdt apiInfo = APIHelper.getAPI('SUN Weather');
 
-        String url = ENDPOINT + '/v3/location/point?postalKey=' + EncodingUtil.urlEncode(postalCode, 'UTF-8') + ':' + EncodingUtil.urlEncode(country, 'UTF-8') + '&language=en-US&format=json&apiKey=' + apiInfo.API_Key__c;		
+        String url = ENDPOINT + '/v3/location/point?postalKey=' + EncodingUtil.urlEncode(postalCode, 'UTF-8') + ':' + EncodingUtil.urlEncode(country, 'UTF-8') + '&language=en-US&format=json&apiKey=' + apiInfo.API_Key__c;        
         HttpRequest request = new HttpRequest();
         request.setEndpoint(url);
         request.setMethod('GET');
@@ -49,13 +49,13 @@ public with sharing class LocationService {
         Http http = new Http();
         String body = null;
         if (!Test.isRunningTest()) {
-	        HttpResponse response = http.send(request);
-    	    body = response.getBody();
+            HttpResponse response = http.send(request);
+            body = response.getBody();
         } else {
             if (String.isEmpty(postalCode)) {
-				body = '{"errors":[{"error":{"message":""}}]}';
+        body = '{"errors":[{"error":{"message":""}}]}';
             } else {
-            	body = '{"location":{"latitude":33.774,"longitude":-84.296,"city":"Decatur"}}';
+                body = '{"location":{"latitude":33.774,"longitude":-84.296,"city":"Decatur","countryCode":"US"}}';
             }
         }
 
@@ -65,22 +65,22 @@ public with sharing class LocationService {
             Map<String, Object> error = (Map<String, Object>)errors[0];
             error = (Map<String, Object>)error.get('error');
             if (error.get('code') != 'LOC:NFE-0001') {
-            throw new LocationException((String)error.get('message'));
-        }        
+                throw new LocationException((String)error.get('message'));
+            }        
         }
             
         resp = (Map<String, Object>)resp.get('location');
         if (resp != null) {
-        GeoLocation loc = new GeoLocation();        
-        loc.latitude = (Decimal)resp.get('latitude');
-        loc.longitude = (Decimal)resp.get('longitude');
-		loc.city = (String)resp.get('city'); 
-        loc.state = (String)resp.get('adminDistrictCode');
-       	loc.country = (String)resp.get('country');
-       	loc.postalCode = (String)resp.get('postalCode');
-	loc.countryCode = (String)resp.get('countryCode');
-        loc.adminDistrict = (String)resp.get('adminDistrict');
-        	if (loc.countryCode == 'US' || loc.countryCode == 'CA') return loc;
+            GeoLocation loc = new GeoLocation();        
+            loc.latitude = (Decimal)resp.get('latitude');
+            loc.longitude = (Decimal)resp.get('longitude');
+            loc.city = (String)resp.get('city'); 
+            loc.state = (String)resp.get('adminDistrictCode');
+            loc.country = (String)resp.get('country');
+            loc.postalCode = (String)resp.get('postalCode');
+            loc.countryCode = (String)resp.get('countryCode');
+            loc.adminDistrict = (String)resp.get('adminDistrict');
+            if (loc.countryCode == 'US' || loc.countryCode == 'CA') return loc;
         }
         throw new LocationException(System.Label.err_unable_to_determine_location); 
     }        
@@ -97,8 +97,8 @@ public with sharing class LocationService {
         Http http = new Http();
         String body = null;
         if (!Test.isRunningTest()) {
-        	HttpResponse response = http.send(request);
-        	body = response.getBody();
+            HttpResponse response = http.send(request);
+            body = response.getBody();
         } else {
             if (String.isEmpty(address) || String.isEmpty(locationType)) {
                 body = '{"errors":[{"error":{"message":""}}]}';
@@ -112,7 +112,7 @@ public with sharing class LocationService {
             Map<String, Object> error = (Map<String, Object>)errors[0];
             error = (Map<String, Object>)error.get('error');
             throw new LocationException((String)error.get('message'));
-        }        		
+        }                
         
         resp = (Map<String, Object>)resp.get('location');
         if (resp == null) throw new LocationException(System.Label.err_unable_to_determine_location);        
@@ -122,13 +122,13 @@ public with sharing class LocationService {
         List<Object> lons = (List<Object>)resp.get('longitude');
         List<Object> cities = (List<Object>)resp.get('city');
         List<Object> states = (List<Object>)resp.get('adminDistrictCode'); 
-	List<Object> countryCodes = (List<Object>)resp.get('countryCode');
+    List<Object> countryCodes = (List<Object>)resp.get('countryCode');
         List<Object> adminDistricts = (List<Object>)resp.get('adminDistrict');        
         loc.latitude = (Decimal)lats[0];
         loc.longitude = (Decimal)lons[0];
         loc.city = (String)cities[0];
         loc.state = (String)states[0]; 
-	loc.countryCode = (String)countryCodes[0];
+    loc.countryCode = (String)countryCodes[0];
         loc.adminDistrict = (String)adminDistricts[0];
         return loc;
     }
