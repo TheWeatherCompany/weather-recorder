@@ -64,12 +64,13 @@ public with sharing class LocationService {
         if (errors != null && !errors.isEmpty()) {
             Map<String, Object> error = (Map<String, Object>)errors[0];
             error = (Map<String, Object>)error.get('error');
+            if (error.get('code') != 'LOC:NFE-0001') {
             throw new LocationException((String)error.get('message'));
         }        
+        }
             
         resp = (Map<String, Object>)resp.get('location');
-        if (resp == null) throw new LocationException(System.Label.err_unable_to_determine_location);
-        
+        if (resp != null) {
         GeoLocation loc = new GeoLocation();        
         loc.latitude = (Decimal)resp.get('latitude');
         loc.longitude = (Decimal)resp.get('longitude');
@@ -79,7 +80,9 @@ public with sharing class LocationService {
        	loc.postalCode = (String)resp.get('postalCode');
 	loc.countryCode = (String)resp.get('countryCode');
         loc.adminDistrict = (String)resp.get('adminDistrict');
-        return loc;
+        	if (loc.countryCode == 'US' || loc.countryCode == 'CA') return loc;
+        }
+        throw new LocationException(System.Label.err_unable_to_determine_location); 
     }        
     
     public static GeoLocation getLocationForLocationType(String address, String locationType) {
